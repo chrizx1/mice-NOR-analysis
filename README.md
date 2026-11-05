@@ -47,7 +47,7 @@ The duration default is informed by [Miedel et al. (2017), section 4.2.16](https
 
 ## Method and provenance
 
-The scoring engine is adapted from `C:\Users\zyuan14\Documents\NOR test\scripts\score_object_investigation_skeleton_v4_arena.py`. Batch setup and paired calibration follow the original `setup_recording.py` and circular batch/setup workflows. The original folder is unchanged. Background subtraction, skeleton head/tail estimation, orientation confidence, short-gap bridging, minimum bouts and preference calculations are retained. Circular and square masks are applied to mouse detection, with configurable radii, angle, bout/gap durations, detection threshold and mouse area limits.
+The scoring engine is adapted from `score_object_investigation_skeleton_v4_arena.py` in chrizx1/mice-object-investigation-scoring repository. Batch setup and paired calibration follow the original `setup_recording.py` and circular batch/setup workflows. The original folder is unchanged. Background subtraction, skeleton head/tail estimation, orientation confidence, short-gap bridging, minimum bouts and preference calculations are retained. Circular and square masks are applied to mouse detection, with configurable radii, angle, bout/gap durations, detection threshold and mouse area limits.
 
 This is automated skeleton-based scoring, whose accuracy depends on lighting, visibility and calibration. Review the annotated video, detection rate and orientation-confidence rate before interpreting experiment results. Brief real-video export tests verify functionality, not scientific accuracy on every recording. Analysis starts at the first frame and is capped at the video length.
 
