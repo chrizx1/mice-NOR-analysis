@@ -10,6 +10,10 @@ import numpy as np
 import pandas as pd
 from scipy.ndimage import distance_transform_edt
 from skimage.morphology import skeletonize
+from immobility import flag_frames, flag_bouts
+
+IMMOBILITY_DURATION_SECONDS = 10.0
+IMMOBILITY_TOLERANCE_PX = 2.0
 
 
 # ============================================================
@@ -3829,6 +3833,11 @@ def main():
         )
     )
 
+    frame_table, immobility_intervals = flag_frames(
+        frame_table, fps, IMMOBILITY_DURATION_SECONDS, IMMOBILITY_TOLERANCE_PX)
+    immobility_intervals.to_csv(
+        OUTPUT_FOLDER / f"{file_prefix}_immobility_intervals.csv", index=False)
+
     frame_table.to_csv(
         frame_csv_path,
         index=False,
@@ -3845,6 +3854,7 @@ def main():
         )
     )
 
+    bout_table = flag_bouts(bout_table, frame_table, fps)
     bout_table.to_csv(
         bout_csv_path,
         index=False,
@@ -4119,6 +4129,12 @@ def main():
         ]
     )
 
+    summary_table['immobility_duration_threshold_seconds'] = IMMOBILITY_DURATION_SECONDS
+    summary_table['immobility_motion_tolerance_px'] = IMMOBILITY_TOLERANCE_PX
+    summary_table['immobility_interval_count'] = len(immobility_intervals)
+    summary_table['immobility_flagged_seconds'] = frame_table['immobility_flag'].sum() / fps
+    summary_table['investigation_immobility_flagged_seconds'] = frame_table['investigation_immobility_flag'].sum() / fps
+    summary_table['immobility_action'] = 'review_flag_only'
     summary_table.to_csv(
         summary_csv_path,
         index=False,
@@ -4524,6 +4540,10 @@ def main():
             cv2.LINE_AA,
         )
 
+        if bool(row['immobility_flag']):
+            label = 'REVIEW: IMMOBILITY - INVESTIGATION' if bool(row['investigation_immobility_flag']) else 'REVIEW: IMMOBILITY'
+            cv2.putText(frame, label, (20, height - 80), cv2.FONT_HERSHEY_SIMPLEX,
+                        0.55, (0, 140, 255), 2, cv2.LINE_AA)
         writer.write(
             frame
         )

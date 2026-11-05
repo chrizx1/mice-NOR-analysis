@@ -1,6 +1,3 @@
-# Installation
-Install Python 3.12, then run: python -m pip install -r requirements.txt.
-
 # NOR / NPR Analyzer
 
 Double-click **Start Analyzer.cmd** to open the desktop application on this computer.
@@ -33,9 +30,21 @@ Import metadata loads the referenced video and its object centers, session, dura
 
 Each run produces frame-by-frame CSV, investigation-bout CSV, summary CSV, annotated MP4, background image, object-zone image, settings.json and analysis.log. COMPLETE.txt appears only after successful completion. Interrupted or failed results are partial. The summary includes protocol, arena shape, center and size. In circular runs the inherited corner fields describe the circle's bounding square; settings.json stores the authoritative shape and radius.
 
+## Immobility review flags
+
+The app flags sustained positional stability for review; it does **not** automatically remove it from investigation time or change preference scores. It cannot identify sniffing or diagnose freezing from body/head position alone.
+
+- **Immobility flag after (s; 0=off)** defaults to 10 seconds. A stationary interval must be strictly longer than this threshold. Set it to 0 to disable flags.
+- **Immobility motion tolerance (px)** defaults to 2 original-video pixels. Both the body centroid and head must remain within this distance of their respective positions at the beginning of the candidate interval. Movement beyond the tolerance restarts the interval. Missing mouse/head tracking breaks the interval; it is never treated as immobility. The 2-pixel value is an adjustable software default, not a published universal cutoff. Check it against your videos and tracking jitter.
+- The **whole qualifying interval** is flagged retrospectively for review, including its initial 10 seconds. The interval CSV reports start/end times so you can distinguish the beginning of immobility from the point at which the duration threshold was exceeded.
+
+The frame CSV includes `stationary_duration_seconds`, `immobility_flag`, `immobility_interval_id`, and `investigation_immobility_flag` (immobility overlapping scored investigation). The bout CSV includes `immobility_flag` and `immobility_flagged_seconds`. A new `*_immobility_intervals.csv` lists full intervals, their duration, and overlap with investigation. End times are exclusive. Summary and batch exports include flag counts/durations. Orange **REVIEW: IMMOBILITY** labels appear in the annotated video, with an additional investigation indication when applicable.
+
+The duration default is informed by [Miedel et al. (2017), section 4.2.16](https://pmc.ncbi.nlm.nih.gov/articles/PMC5608159/), which ends exploration bouts after more than 10 seconds of immobility. This implementation provides a review flag, rather than claiming to reproduce that behavioral judgment automatically. Validate the tolerance against blinded manual scoring and use consistent settings across recordings being compared.
+
 ## Method and provenance
 
-The scoring engine is adapted from `score_object_investigation_skeleton_v4_arena.py` (can be found in the object-investigation-scoring repository). Batch setup and paired calibration follow the original `setup_recording.py` and circular batch/setup workflows. The original folder is unchanged. Background subtraction, skeleton head/tail estimation, orientation confidence, short-gap bridging, minimum bouts and preference calculations are retained. Circular and square masks are applied to mouse detection, with configurable radii, angle, bout/gap durations, detection threshold and mouse area limits.
+The scoring engine is adapted from `C:\Users\zyuan14\Documents\NOR test\scripts\score_object_investigation_skeleton_v4_arena.py`. Batch setup and paired calibration follow the original `setup_recording.py` and circular batch/setup workflows. The original folder is unchanged. Background subtraction, skeleton head/tail estimation, orientation confidence, short-gap bridging, minimum bouts and preference calculations are retained. Circular and square masks are applied to mouse detection, with configurable radii, angle, bout/gap durations, detection threshold and mouse area limits.
 
 This is automated skeleton-based scoring, whose accuracy depends on lighting, visibility and calibration. Review the annotated video, detection rate and orientation-confidence rate before interpreting experiment results. Brief real-video export tests verify functionality, not scientific accuracy on every recording. Analysis starts at the first frame and is capped at the video length.
 

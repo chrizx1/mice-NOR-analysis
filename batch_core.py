@@ -8,7 +8,8 @@ import cv2
 import numpy as np
 
 DEFAULTS = dict(angle=90., bout=.2, gap=.2, threshold=25., min_area=150., max_area=7000.,
-                multiplier=4., object_radius=12., positive=2, minutes=10., experiment='Two-object')
+                multiplier=4., object_radius=12., positive=2, minutes=10., experiment='Two-object',
+                immobility_seconds=10.,immobility_tolerance=2.)
 
 
 def default_minutes(session):
@@ -106,6 +107,9 @@ def validate(c):
     if min(c['bout'],c['gap']) < 0 or not 0 < c['threshold'] <= 255 or c['max_area'] <= c['min_area']:
         raise ValueError('Invalid bout, gap, threshold or mouse area limits.')
     if c['positive'] not in (1,2): raise ValueError('Positive object must be 1 or 2.')
+    for key in ('immobility_seconds','immobility_tolerance'):
+        value=float(c.get(key,DEFAULTS[key]))
+        if not math.isfinite(value) or value < 0: raise ValueError('Immobility settings must be finite and nonnegative.')
     if c.get('encoding_radii'):
         if len(c['encoding_radii']) != 2 or any(not math.isfinite(r) or r <= 0 for r in c['encoding_radii']):
             raise ValueError('Both encoding radii must be positive.')
@@ -126,6 +130,7 @@ def plan_batch(recordings, output):
     groups = {}
     for source in recordings:
         c = deepcopy(source)
+        for key in ('immobility_seconds','immobility_tolerance'): c.setdefault(key,DEFAULTS[key])
         c['animal'] = c['animal'].strip()
         sessions = groups.setdefault(c['animal'],{})
         if c['session'] in sessions: raise ValueError(f'{c["animal"]}: duplicate {c["session"]} sessions. Use distinct IDs for different visits.')
@@ -184,6 +189,8 @@ def write_reports(jobs, output):
                     for key in ('object_1_investigation_seconds','object_2_investigation_seconds',
                                 'total_investigation_seconds','preference_index','mouse_detection_rate_percent',
                                 'orientation_confidence_rate_percent'):
+                        pair[prefix+key] = row.get(key)
+                    for key in ('immobility_interval_count','immobility_flagged_seconds','investigation_immobility_flagged_seconds'):
                         pair[prefix+key] = row.get(key)
         paired.append(pair)
     pd.DataFrame(paired).to_csv(root/'paired_animals.csv',index=False)

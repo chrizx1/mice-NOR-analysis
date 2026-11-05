@@ -58,6 +58,8 @@ def run_analysis(config_path):
     engine.DIFFERENCE_THRESHOLD = c['threshold']
     engine.MINIMUM_MOUSE_AREA = c['min_area']
     engine.MAXIMUM_MOUSE_AREA = c['max_area']
+    engine.IMMOBILITY_DURATION_SECONDS = float(c.get('immobility_seconds',10.))
+    engine.IMMOBILITY_TOLERANCE_PX = float(c.get('immobility_tolerance',2.))
     engine.select_video_file = lambda: Path(c['video'])
     engine.ask_analysis_duration_minutes = lambda: c['minutes']
     engine.ask_session_type = lambda: c['session']
@@ -145,6 +147,8 @@ class App:
                   ('angle','Maximum head angle (degrees)','90',None),
                   ('bout','Minimum bout (seconds)','0.2',None),
                   ('gap','Maximum bridged gap (seconds)','0.2',None),
+                  ('immobility_seconds','Immobility flag after (s; 0=off)','10',None),
+                  ('immobility_tolerance','Immobility motion tolerance (px)','2',None),
                   ('threshold','Background difference threshold','25',None),
                   ('min_area','Minimum mouse area (px²)','150',None),
                   ('max_area','Maximum mouse area (px²)','7000',None)]
@@ -215,6 +219,7 @@ class App:
         try:
             for key,var in self.vars.items():
                 if key in c: var.set(str(c[key]))
+                elif key in ('immobility_seconds','immobility_tolerance'): var.set(str(batch.DEFAULTS[key]))
             self.objects = c['objects']
             self.calibration = c.get('calibration','')
             self.extra = {k:c[k] for k in ('arena_points','encoding_radii','source_metadata') if k in c}
@@ -328,7 +333,7 @@ class App:
         if self.frame is None: raise ValueError('Open a video first.')
         if any(p is None for p in self.objects): raise ValueError('Place both object centers on the frame.')
         c = {k:v.get() for k,v in self.vars.items()}
-        for k in ('minutes','cx','cy','size','object_radius','multiplier','angle','bout','gap','threshold','min_area','max_area'):
+        for k in ('minutes','cx','cy','size','object_radius','multiplier','angle','bout','gap','threshold','min_area','max_area','immobility_seconds','immobility_tolerance'):
             c[k] = float(c[k])
             if not math.isfinite(c[k]): raise ValueError(f'{k} must be finite.')
         for k in ('minutes','size','object_radius','min_area','max_area'):
@@ -336,6 +341,7 @@ class App:
         if c['multiplier'] <= 1: raise ValueError('Zone multiplier must exceed 1.')
         if not 0 <= c['angle'] <= 180: raise ValueError('Head angle must be between 0 and 180 degrees.')
         if c['bout'] < 0 or c['gap'] < 0: raise ValueError('Bout and gap durations cannot be negative.')
+        if c['immobility_seconds'] < 0 or c['immobility_tolerance'] < 0: raise ValueError('Immobility settings cannot be negative.')
         if not 0 < c['threshold'] <= 255: raise ValueError('Difference threshold must be between 1 and 255.')
         if c['max_area'] <= c['min_area']: raise ValueError('Maximum mouse area must exceed minimum.')
         if not c['animal'].strip(): raise ValueError('Enter an animal ID.')
