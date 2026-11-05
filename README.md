@@ -1,3 +1,6 @@
+# Installation
+Install Python 3.12, then run: python -m pip install -r requirements.txt.
+
 # NOR / NPR Analyzer
 
 Double-click **Start Analyzer.cmd** to open the desktop application on this computer.
