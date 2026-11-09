@@ -1,4 +1,4 @@
-"""Review flags based on sustained head/body position stability; never changes scoring."""
+"""Detect sustained head/body positional stability and exclude it from investigation."""
 import math
 import numpy as np
 import pandas as pd
@@ -68,3 +68,19 @@ def flag_bouts(bouts, frames, fps):
         bouts.loc[index,'immobility_flag']=bool(flagged.any())
         bouts.loc[index,'immobility_flagged_seconds']=float(flagged.sum()/fps)
     return bouts
+
+
+def exclude_immobility(table, minimum_bout_frames, bout_filter):
+    """Keep pre-exclusion evidence; never bridge excluded frames back into a bout."""
+    table=table.copy()
+    before=table['cleaned_state'].astype(int).to_numpy()
+    table['pre_immobility_state']=before
+    excluded=table['immobility_flag'].to_numpy(dtype=bool) & np.isin(before,[1,2])
+    table['immobility_excluded']=excluded
+    masked=before.copy()
+    masked[excluded]=0
+    final=np.asarray(bout_filter(masked.tolist(),minimum_bout_frames),dtype=int)
+    table['short_bout_after_immobility_excluded']=(masked!=0) & (final==0)
+    table['cleaned_state']=final
+    table['behavior']=table['cleaned_state'].map({0:'not_investigating',1:'object_1',2:'object_2'})
+    return table

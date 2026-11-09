@@ -149,7 +149,7 @@ class App:
                   ('angle','Maximum head angle (degrees)','90',None),
                   ('bout','Minimum bout (seconds)','0.2',None),
                   ('gap','Maximum bridged gap (seconds)','0.2',None),
-                  ('immobility_seconds','Immobility flag after (s; 0=off)','10',None),
+                  ('immobility_seconds','Exclude immobility > (s; 0=off)','10',None),
                   ('immobility_tolerance','Immobility motion tolerance (px)','2',None),
                   ('threshold','Background difference threshold','25',None),
                   ('min_area','Minimum mouse area (px²)','150',None),

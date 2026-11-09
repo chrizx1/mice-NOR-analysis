@@ -30,17 +30,19 @@ Import metadata loads the referenced video and its object centers, session, dura
 
 Each run produces frame-by-frame CSV, investigation-bout CSV, summary CSV, annotated MP4, background image, object-zone image, settings.json and analysis.log. COMPLETE.txt appears only after successful completion. Interrupted or failed results are partial. The summary includes protocol, arena shape, center and size. In circular runs the inherited corner fields describe the circle's bounding square; settings.json stores the authoritative shape and radius.
 
-## Immobility review flags
+## Immobility exclusion
 
-The app flags sustained positional stability for review; it does **not** automatically remove it from investigation time or change preference scores. It cannot identify sniffing or diagnose freezing from body/head position alone.
+Qualifying immobility is excluded automatically from final investigation times, bout counts, object preference percentages and preference/discrimination indices. The raw tracking and pre-exclusion classifications are retained for audit.
 
-- **Immobility flag after (s; 0=off)** defaults to 10 seconds. A stationary interval must be strictly longer than this threshold. Set it to 0 to disable flags.
-- **Immobility motion tolerance (px)** defaults to 2 original-video pixels. Both the body centroid and head must remain within this distance of their respective positions at the beginning of the candidate interval. Movement beyond the tolerance restarts the interval. Missing mouse/head tracking breaks the interval; it is never treated as immobility. The 2-pixel value is an adjustable software default, not a published universal cutoff. Check it against your videos and tracking jitter.
-- The **whole qualifying interval** is flagged retrospectively for review, including its initial 10 seconds. The interval CSV reports start/end times so you can distinguish the beginning of immobility from the point at which the duration threshold was exceeded.
+- **Exclude immobility > (s; 0=off)** defaults to 10 seconds. Once an interval is strictly longer than this threshold, the **whole interval**, including its initial 10 seconds, is excluded from investigation. Set 0 to disable detection and exclusion.
+- **Immobility motion tolerance (px)** defaults to 2 original-video pixels. Both body and head must stay within this distance of their positions at the interval start. Motion beyond the tolerance restarts the interval; missing head/body tracking breaks it. This pixel tolerance is a configurable software default, not a published universal value.
+- Excluded frames split investigation bouts. Minimum bout duration is reapplied to the remaining pieces, and gap bridging is not repeated across excluded frames. If no investigation remains, the preference index is undefined (blank/NaN), not zero.
 
-The frame CSV includes `stationary_duration_seconds`, `immobility_flag`, `immobility_interval_id`, and `investigation_immobility_flag` (immobility overlapping scored investigation). The bout CSV includes `immobility_flag` and `immobility_flagged_seconds`. A new `*_immobility_intervals.csv` lists full intervals, their duration, and overlap with investigation. End times are exclusive. Summary and batch exports include flag counts/durations. Orange **REVIEW: IMMOBILITY** labels appear in the annotated video, with an additional investigation indication when applicable.
+Frame CSVs include `pre_immobility_state`, final `cleaned_state`, `immobility_excluded`, and `short_bout_after_immobility_excluded`, alongside the original tracking and flags. Interval CSVs retain all detected immobility periods. Final bout CSVs contain only eligible investigation. Orange **EXCLUDED: IMMOBILITY** video labels indicate investigation removed by this rule.
 
-The duration default is informed by [Miedel et al. (2017), section 4.2.16](https://pmc.ncbi.nlm.nih.gov/articles/PMC5608159/), which ends exploration bouts after more than 10 seconds of immobility. This implementation provides a review flag, rather than claiming to reproduce that behavioral judgment automatically. Validate the tolerance against blinded manual scoring and use consistent settings across recordings being compared.
+Session and batch summaries report corrected scores, pre-exclusion object times, per-object immobility exclusions, and any further time removed by minimum-bout filtering. `immobility_action` is `exclude_from_investigation` (or `disabled`). Recording/selected-window duration is unchanged. Previous result files are not recalculated automatically; rerun analysis to apply the new rule.
+
+The 10-second default is informed by [Miedel et al. (2017), section 4.2.16](https://pmc.ncbi.nlm.nih.gov/articles/PMC5608159/). Retrospectively excluding the entire stationary interval is this software's explicit rule, not a claim that the paper specifies that exact retrospective procedure. Positional stability does not prove freezing and may include stationary sniffing; validate the tolerance against manually scored clips and use consistent settings across groups.
 
 ## Method and provenance
 

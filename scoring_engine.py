@@ -10,7 +10,7 @@ import numpy as np
 import pandas as pd
 from scipy.ndimage import distance_transform_edt
 from skimage.morphology import skeletonize
-from immobility import flag_frames, flag_bouts
+from immobility import flag_frames, flag_bouts, exclude_immobility
 
 IMMOBILITY_DURATION_SECONDS = 10.0
 IMMOBILITY_TOLERANCE_PX = 2.0
@@ -3835,6 +3835,8 @@ def main():
 
     frame_table, immobility_intervals = flag_frames(
         frame_table, fps, IMMOBILITY_DURATION_SECONDS, IMMOBILITY_TOLERANCE_PX)
+    frame_table = exclude_immobility(frame_table, minimum_bout_frames, remove_short_bouts)
+    cleaned_states = frame_table['cleaned_state'].astype(int).tolist()
     immobility_intervals.to_csv(
         OUTPUT_FOLDER / f"{file_prefix}_immobility_intervals.csv", index=False)
 
@@ -4134,7 +4136,13 @@ def main():
     summary_table['immobility_interval_count'] = len(immobility_intervals)
     summary_table['immobility_flagged_seconds'] = frame_table['immobility_flag'].sum() / fps
     summary_table['investigation_immobility_flagged_seconds'] = frame_table['investigation_immobility_flag'].sum() / fps
-    summary_table['immobility_action'] = 'review_flag_only'
+    summary_table['immobility_action'] = 'exclude_from_investigation' if IMMOBILITY_DURATION_SECONDS > 0 else 'disabled'
+    summary_table['immobility_excluded_investigation_seconds'] = frame_table['immobility_excluded'].sum() / fps
+    summary_table['post_immobility_short_bout_excluded_seconds'] = frame_table['short_bout_after_immobility_excluded'].sum() / fps
+    for object_id in (1, 2):
+        before = frame_table['pre_immobility_state'].eq(object_id)
+        summary_table[f'object_{object_id}_investigation_before_immobility_seconds'] = before.sum() / fps
+        summary_table[f'object_{object_id}_immobility_excluded_seconds'] = (before & frame_table['immobility_excluded']).sum() / fps
     summary_table.to_csv(
         summary_csv_path,
         index=False,
@@ -4541,7 +4549,7 @@ def main():
         )
 
         if bool(row['immobility_flag']):
-            label = 'REVIEW: IMMOBILITY - INVESTIGATION' if bool(row['investigation_immobility_flag']) else 'REVIEW: IMMOBILITY'
+            label = 'EXCLUDED: IMMOBILITY' if bool(row['immobility_excluded']) else 'IMMOBILITY'
             cv2.putText(frame, label, (20, height - 80), cv2.FONT_HERSHEY_SIMPLEX,
                         0.55, (0, 140, 255), 2, cv2.LINE_AA)
         writer.write(

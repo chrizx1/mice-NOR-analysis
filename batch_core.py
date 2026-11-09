@@ -190,7 +190,11 @@ def write_reports(jobs, output):
                                 'total_investigation_seconds','preference_index','mouse_detection_rate_percent',
                                 'orientation_confidence_rate_percent'):
                         pair[prefix+key] = row.get(key)
-                    for key in ('immobility_interval_count','immobility_flagged_seconds','investigation_immobility_flagged_seconds'):
+                    for key in ('immobility_interval_count','immobility_flagged_seconds','investigation_immobility_flagged_seconds',
+                                'immobility_action','immobility_excluded_investigation_seconds',
+                                'post_immobility_short_bout_excluded_seconds',
+                                'object_1_immobility_excluded_seconds','object_2_immobility_excluded_seconds',
+                                'object_1_investigation_before_immobility_seconds','object_2_investigation_before_immobility_seconds'):
                         pair[prefix+key] = row.get(key)
         paired.append(pair)
     pd.DataFrame(paired).to_csv(root/'paired_animals.csv',index=False)
