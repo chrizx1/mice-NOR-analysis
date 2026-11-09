@@ -103,6 +103,8 @@ class App:
         self.events = queue.Queue()
         self.vars = {}
         self.extra = {}
+        self.corner_draft = []
+        self.drag_corner = None
         self.loading = False
         self.batch_window = None
         self.mode = tk.StringVar(value='Arena center')
@@ -164,7 +166,14 @@ class App:
             var.trace_add('write', lambda *_, key=key: self.changed(key))
         self.zone_label = ttk.Label(left, text='', wraplength=310)
         self.zone_label.pack(anchor='w',pady=8)
-        ttk.Label(left,text='Same scoring for novel objects or locations.\nCircle size = radius; square size = side.\nBatch pairs share the encoding object radius.\nUse object-edge tools to measure encoding radii.',wraplength=310).pack(anchor='w')
+        ttk.Label(left,text='Square arena: use Arena corners for tilted views.\nCircle size = radius; square size = side.\nBatch pairs share the encoding object radius.\nUse object-edge tools to measure encoding radii.',wraplength=310).pack(anchor='w')
+        cornerbar = ttk.Frame(right)
+        cornerbar.pack(fill='x',pady=(0,4))
+        b = ttk.Radiobutton(cornerbar,text='Arena corners (4 clicks / drag to adjust)',variable=self.mode,value='Arena corners')
+        b.pack(side='left'); self.controls.append(b)
+        for label,command in [('Redraw corners',self.reset_corners),('Undo corner',self.undo_corner)]:
+            b=ttk.Button(cornerbar,text=label,command=command)
+            b.pack(side='left',padx=4); self.controls.append(b)
         toolbar = ttk.Frame(right)
         toolbar.pack(fill='x')
         for mode in ('Arena center','Arena edge','Object 1','Object 2','Object 1 edge','Object 2 edge'):
@@ -175,6 +184,8 @@ class App:
         self.canvas = tk.Canvas(right,bg='#18212b',highlightthickness=0)
         self.canvas.pack(fill='both',expand=True)
         self.canvas.bind('<Button-1>',self.click)
+        self.canvas.bind('<B1-Motion>',self.drag_corner_motion)
+        self.canvas.bind('<ButtonRelease-1>',self.release_corner)
         self.canvas.bind('<Configure>',lambda _: self.redraw())
         self.log = tk.Text(right,height=9,bg='#101923',fg='#c9dfec',font=('Consolas',9),state='disabled')
         self.log.pack(fill='x',pady=(8,0))
@@ -194,7 +205,9 @@ class App:
     def changed(self,key):
         if not self.loading:
             if key == 'session': self.vars['minutes'].set(str(batch.default_minutes(self.vars['session'].get())))
-            if key in ('shape','cx','cy','size'): self.extra.pop('arena_points',None)
+            if key in ('shape','cx','cy','size'):
+                self.extra.pop('arena_points',None)
+                self.corner_draft=[]; self.drag_corner=None
             if key == 'object_radius': self.extra.pop('encoding_radii',None)
         self.redraw()
 
@@ -238,6 +251,7 @@ class App:
             messagebox.showerror('Video error','Cannot read this video or its frame rate.'); return
         self.video = str(Path(path).resolve())
         self.extra = {}
+        self.corner_draft=[]; self.drag_corner=None
         self.calibration = ''
         self.frame, self.fps, self.count = frame, fps, count
         self.objects = [None,None]
@@ -275,12 +289,27 @@ class App:
         except Exception as e: messagebox.showerror('Metadata error',str(e))
 
     def click(self,event):
-        if self.frame is None or self.process: return
+        if self.frame is None or self.process or (self.batch_window and self.batch_window.running): return
         x,y = (event.x-self.ox)/self.scale,(event.y-self.oy)/self.scale
         h,w = self.frame.shape[:2]
         if not (0 <= x < w and 0 <= y < h): return
         mode = self.mode.get()
-        if mode == 'Arena center':
+        if mode == 'Arena corners':
+            if self.vars['shape'].get() != 'Square': self.vars['shape'].set('Square')
+            points=self.extra.get('arena_points')
+            if points:
+                distances=[math.hypot(x-px,y-py)*self.scale for px,py in points]
+                nearest=int(np.argmin(distances))
+                if distances[nearest] <= 14:
+                    self.drag_corner=nearest
+                    self.corner_draft=[list(p) for p in points]
+                    self.status.set('Drag the corner to the arena boundary, then release.')
+                else: self.status.set('Drag a numbered corner, or choose Redraw corners to start over.')
+            else:
+                self.corner_draft.append([x,y])
+                if len(self.corner_draft)==4: self.commit_corners()
+                else: self.status.set(f'Corner {len(self.corner_draft)}/4 placed. Click the remaining arena corners.')
+        elif mode == 'Arena center':
             self.vars['cx'].set(f'{x:.2f}'); self.vars['cy'].set(f'{y:.2f}')
         elif mode == 'Arena edge':
             try: dx,dy = x-float(self.vars['cx'].get()),y-float(self.vars['cy'].get())
@@ -300,6 +329,63 @@ class App:
         else: self.objects[int(mode[-1])-1] = [x,y]
         self.redraw()
 
+    def reset_corners(self):
+        if self.frame is None or self.process or (self.batch_window and self.batch_window.running): return
+        self.vars['shape'].set('Square')
+        self.extra.pop('arena_points',None)
+        self.corner_draft=[]; self.drag_corner=None
+        self.mode.set('Arena corners')
+        self.status.set('Click the four arena corners. You can click them in any order.')
+        self.redraw()
+
+    def undo_corner(self):
+        if self.process or (self.batch_window and self.batch_window.running): return
+        if self.extra.get('arena_points'): self.corner_draft=[list(p) for p in self.extra.pop('arena_points')]
+        if self.corner_draft: self.corner_draft.pop()
+        self.drag_corner=None; self.mode.set('Arena corners')
+        self.status.set(f'{len(self.corner_draft)}/4 corners placed. Click to replace the last corner.')
+        self.redraw()
+
+    def commit_corners(self):
+        points=np.asarray(self.corner_draft,dtype=float)
+        # Sort around their centroid so arbitrary click order does not produce crossed edges.
+        center=points.mean(axis=0)
+        points=points[np.argsort(np.arctan2(points[:,1]-center[1],points[:,0]-center[0]))]
+        points=np.roll(points,-int(np.argmin(points.sum(axis=1))),axis=0)
+        candidate=dict(shape='Square',arena_points=points.tolist())
+        h,w=self.frame.shape[:2]
+        try: batch.geometry(candidate,w,h)
+        except ValueError:
+            if self.extra.get('arena_points'):
+                self.corner_draft=[]
+                self.status.set('That corner position is invalid. The previous arena was kept.')
+            else:
+                self.status.set('Corners must enclose a convex arena. Click a replacement for the last corner.')
+                self.corner_draft=self.corner_draft[:3]
+            return
+        self.extra['arena_points']=points.tolist()
+        self.corner_draft=[]
+        self.loading=True
+        try:
+            self.vars['cx'].set(f'{center[0]:.3f}')
+            self.vars['cy'].set(f'{center[1]:.3f}')
+            self.vars['size'].set(f'{max(np.ptp(points[:,0]),np.ptp(points[:,1])):.3f}')
+        finally: self.loading=False
+        self.status.set('Four-corner arena saved. Drag numbered corners to refine it; object positions are independent.')
+
+    def drag_corner_motion(self,event):
+        if self.drag_corner is None or self.process or (self.batch_window and self.batch_window.running): return
+        h,w=self.frame.shape[:2]
+        self.corner_draft[self.drag_corner]=[float(np.clip((event.x-self.ox)/self.scale,0,w-1)),
+                                              float(np.clip((event.y-self.oy)/self.scale,0,h-1))]
+        self.redraw()
+
+    def release_corner(self,event):
+        if self.drag_corner is None: return
+        self.drag_corner=None
+        self.commit_corners()
+        self.redraw()
+
     def redraw(self):
         if self.frame is None or not hasattr(self,'canvas'): return
         h,w = self.frame.shape[:2]
@@ -316,10 +402,16 @@ class App:
             def box(x,y,r):
                 return (self.ox+(x-r)*self.scale,self.oy+(y-r)*self.scale,self.ox+(x+r)*self.scale,self.oy+(y+r)*self.scale)
             if self.vars['shape'].get() == 'Circular': self.canvas.create_oval(*box(cx,cy,size),outline='#65efab',width=2)
-            elif self.extra.get('arena_points'):
-                coords = [value for px,py in self.extra['arena_points'] for value in (self.ox+px*self.scale,self.oy+py*self.scale)]
-                self.canvas.create_polygon(*coords,outline='#65efab',fill='',width=2)
-            else: self.canvas.create_rectangle(*box(cx,cy,size/2),outline='#65efab',width=2)
+            elif self.corner_draft or self.extra.get('arena_points'):
+                points=self.corner_draft or self.extra['arena_points']
+                coords = [value for px,py in points for value in (self.ox+px*self.scale,self.oy+py*self.scale)]
+                if len(points)==4: self.canvas.create_polygon(*coords,outline='#65efab',fill='',width=2)
+                elif len(points)>1: self.canvas.create_line(*coords,fill='#65efab',width=2)
+                for i,(px,py) in enumerate(points):
+                    sx,sy=self.ox+px*self.scale,self.oy+py*self.scale
+                    self.canvas.create_oval(sx-6,sy-6,sx+6,sy+6,fill='#65efab',outline='#18212b')
+                    self.canvas.create_text(sx+12,sy-12,text=str(i+1),fill='#65efab',font=('Segoe UI',12,'bold'))
+            elif self.mode.get() != 'Arena corners': self.canvas.create_rectangle(*box(cx,cy,size/2),outline='#65efab',width=2)
             for i,point in enumerate(self.objects):
                 if point is None: continue
                 color = ['#ffe66b','#66dcff'][i]
@@ -331,6 +423,7 @@ class App:
 
     def configuration(self):
         if self.frame is None: raise ValueError('Open a video first.')
+        if self.corner_draft: raise ValueError('Finish the four-corner arena selection before saving or running.')
         if any(p is None for p in self.objects): raise ValueError('Place both object centers on the frame.')
         c = {k:v.get() for k,v in self.vars.items()}
         for k in ('minutes','cx','cy','size','object_radius','multiplier','angle','bout','gap','threshold','min_area','max_area','immobility_seconds','immobility_tolerance'):

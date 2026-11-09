@@ -1,12 +1,9 @@
-# Installation
-Install Python 3.12, then run: python -m pip install -r requirements.txt.
-
 # NOR / NPR Analyzer
 
 Double-click **Start Analyzer.cmd** to open the desktop application on this computer.
 
 1. Open a video. Choose encoding or test, animal ID, and duration. Encoding defaults to 10 minutes; test defaults to 5 minutes. You can edit either duration, and analysis stops at the end of shorter videos. Imported setups keep their saved durations. NOR and NPR use exactly the same scoring; no protocol selection is needed.
-2. Choose Circular or Square. Select **Arena center** and click the center. Select **Arena edge** and click the boundary. You can also enter exact values. Circle size is a radius; square size is the full side length. Squares are aligned with the image axes.
+2. Choose Circular or Square. For a circle, select **Arena center**, click the center, then select **Arena edge** and click the boundary. For a square arena filmed at an angle, select **Arena corners** and click its four visible corners in any order. The actual quadrilateral becomes the analysis mask, so the edges do not need to be aligned with the image axes. Drag a numbered corner to refine it, use **Undo corner** to replace the last point, or **Redraw corners** to start again. Finish all four points before saving/running. Center/edge and numeric size controls remain available for an axis-aligned square; editing those controls replaces a traced quadrilateral. Circle size is a radius; square size is a full side length (for a traced arena, it displays the maximum bounding extent).
 3. Select **Object 1** and **Object 2** and click their centers. For encoding, use **Object 1 edge** and **Object 2 edge** to measure the two radii. Their mean becomes the common radius, as in the original scripts. Alternatively enter the common radius directly (both selected radii then equal this value).
 4. Set the zone multiplier. Investigation-zone radius = object radius × multiplier (for example 12 px × 4 = 48 px). This is measured from the object center. All distances use the original video resolution, regardless of preview size.
 5. Choose the positive object: the novel object for NOR, or the moved object for NPR. The preference/discrimination score is (positive time − other time) / total investigation time. Zero total investigation produces an undefined score.
@@ -47,7 +44,7 @@ The duration default is informed by [Miedel et al. (2017), section 4.2.16](https
 
 ## Method and provenance
 
-The scoring engine is adapted from `score_object_investigation_skeleton_v4_arena.py` in chrizx1/mice-object-investigation-scoring repository. Batch setup and paired calibration follow the original `setup_recording.py` and circular batch/setup workflows. The original folder is unchanged. Background subtraction, skeleton head/tail estimation, orientation confidence, short-gap bridging, minimum bouts and preference calculations are retained. Circular and square masks are applied to mouse detection, with configurable radii, angle, bout/gap durations, detection threshold and mouse area limits.
+The scoring engine is adapted from `score_object_investigation_skeleton_v4_arena.py` in the `chrizx1/mice-object-investigation-scoring` repository. Batch setup and paired calibration follow the original `setup_recording.py` and circular batch/setup workflows. The original folder is unchanged. Background subtraction, skeleton head/tail estimation, orientation confidence, short-gap bridging, minimum bouts and preference calculations are retained. Circular and square masks are applied to mouse detection, with configurable radii, angle, bout/gap durations, detection threshold and mouse area limits.
 
 This is automated skeleton-based scoring, whose accuracy depends on lighting, visibility and calibration. Review the annotated video, detection rate and orientation-confidence rate before interpreting experiment results. Brief real-video export tests verify functionality, not scientific accuracy on every recording. Analysis starts at the first frame and is capped at the video length.
 
